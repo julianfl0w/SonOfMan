@@ -37,9 +37,10 @@ if __name__ == "__main__":
 
         # get all inputs
         av = webrtc.getFrame()
-        # pay attention to read pointers
-        j = J.read(self.Jpath)
-        # get web (ratelimited)
+        
+        # Pump in the ethics!
+        j = J.read(self.Jpath) # pay attention to read pointers
+        # get web (ratelimited?)
         w = web.read(self.webPointer)
         # get PILE 
         p = pile.read(self.pilePointer)
