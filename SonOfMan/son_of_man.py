@@ -1,12 +1,28 @@
+import os
+import sys
 
-
+here = os.path.dirname(os.path.abspath(__file__))
+sinodePath = os.path.join(here, "..", "..", "sinode")
+if sinodePath not in sys.path:
+    sys.path.insert(
+        0, sinodePath
+    )
+import sinode.sinode as sinode
+vulkanesePath = os.path.join(here, "..", "..", "vulkanese")
+if vulkanesePath not in sys.path:
+    sys.path.insert(
+        0, vulkanesePath
+    )
 import vulkanese as ve
-import bookofjulian as J
+
 
 class SonOfMan(ve.graph):
 
     def __init__(self, depth = 0, **kwargs):
         ve.graph.__init__(self, **kwargs)
+
+        if not os.path.exists(os.path.join(here, "julian.json")):
+            os.system("wget http://bookofjulian.net/julian.json .")
 
         # generate our own brain
         self.brain = ve.ai.humanBrain()
@@ -17,7 +33,7 @@ class SonOfMan(ve.graph):
                 self.children += [SonOfMan(depth=depth+1, **kwargs)]
 
 
-    def run(self, depth = 0,indata):
+    def run(self, indata, depth = 0):
 
         # council proceeds from below
         if self.height == 0:

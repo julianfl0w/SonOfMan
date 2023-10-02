@@ -1,0 +1,9 @@
+version: '3'
+
+services:
+  webcam-streamer:
+    image: webcam_interface
+    devices:
+      - /dev/video0:/dev/video0
+    network:
+      host: true

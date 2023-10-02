@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "../vulkanese"
+		},
+		{
+			"path": "../BookOfJulian"
 		}
 	],
 	"settings": {}
