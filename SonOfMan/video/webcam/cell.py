@@ -3,6 +3,7 @@ import uuid
 import json
 import requests
 import asyncio
+import constants
 
 from aiortc import RTCPeerConnection, RTCConfiguration, RTCIceServer
 
@@ -31,17 +32,20 @@ async def main():
     data_channel = peer_connection.createDataChannel("dummyChannel")
     
     # Generate a unique host_id using uuid
-    host_id = str(uuid.uuid4())
+    mac_num = uuid.getnode()
+    mac_address = ':'.join(('%012X' % mac_num)[i:i+2] for i in range(0, 12, 2))
+    host_id = mac_address
+
+    sdp = await create_offer_and_gather_candidates(peer_connection)
+    print(f"Gathered SDP:\n{sdp}")
+
     
     while True:
-        sdp = await create_offer_and_gather_candidates(peer_connection)
-        print(f"Gathered SDP:\n{sdp}")
-
         # Report the ICE candidate to the signaling server
         await report_ice_candidate_to_server(host_id, sdp)
 
-        # Wait for 59 minutes before next report
-        await asyncio.sleep(59*60)
+        # Wait for 5s before next report
+        await asyncio.sleep(constants.KeepAlive.time)
 
 if __name__ == "__main__":
     asyncio.run(main())

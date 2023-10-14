@@ -1,8 +1,11 @@
 from flask import Flask, jsonify, request
+from flask_cors import CORS  # <-- Import CORS
 import threading
 import time
+import constants
 
 app = Flask(__name__)
+CORS(app)  # <-- Enable CORS for the app
 
 # To store the ICE candidates received from the hosts
 candidates = {}
@@ -30,11 +33,11 @@ def cleanup_candidates():
     while True:
         current_time = time.time()
         # Remove candidates older than 3600 seconds (1 hour)
-        keys_to_delete = [key for key, value in candidates.items() if current_time - value['timestamp'] > 3600]
+        keys_to_delete = [key for key, value in candidates.items() if current_time - value['timestamp'] > constants.KeepAlive.time*1.1]
         for key in keys_to_delete:
             candidates.pop(key, None)
         # Sleep for a while before the next cleanup
-        time.sleep(60)
+        time.sleep(constants.KeepAlive.time/2)
 
 if __name__ == '__main__':
     # Start a background thread for candidate cleanup
