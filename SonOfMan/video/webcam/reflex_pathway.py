@@ -44,8 +44,6 @@ def handle_brain_message(message):
 @socketio.on('connect', namespace='/eye_connect')
 def handle_eye_connect():
     print("Client connected to /eye_connect")
-    # send list of ice candidates on connect
-    emit('message', {'candidates': {k: v['candidate'] for k, v in candidates.items()}})
 
 @socketio.on('disconnect', namespace='/eye_connect')
 def handle_eye_disconnect():
@@ -54,6 +52,12 @@ def handle_eye_disconnect():
 @socketio.on('message', namespace='/eye_connect')
 def handle_eye_message(message):
     print(f"Received on /eye_connect: {message}")
+    message = json.loads(message)
+    request = message.get('request')
+    if request:
+        # send list of ice candidates on connect
+        emit('message', {'candidates': {k: v['candidate'] for k, v in candidates.items()}})
+        print("Candidates sent")
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, port=5000)

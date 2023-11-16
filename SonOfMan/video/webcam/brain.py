@@ -19,14 +19,11 @@ class Brain:
         self.ws_url = "http://localhost:5000"
         self.sio = socketio.AsyncClient()
 
-        self.main_task = asyncio.run(self.main())
-
-        return 
-
     async def on_message(self, data):
         print(f"Received message: {data}")
+        # TODO: Handle ICE candidates received from server
 
-    async def main(self):
+    async def start(self):
         # create_offer_and_gather_candidates
         offer = await self.pc.createOffer()
         await self.pc.setLocalDescription(offer)
@@ -43,11 +40,15 @@ class Brain:
         data = {'host_id': self.host_id, 'candidate': sdp}
         await self.sio.emit('message', json.dumps(data), namespace='/brain_connect')
 
-        # wait for some time to ensure message is received
-        await asyncio.sleep(5)
+        # TODO: Handle ICE candidate gathering
 
-        # disconnect after receiving the message
+        # Keep the connection open
+        await asyncio.Future()  # This will keep the connection open indefinitely
+
+    async def stop(self):
         await self.sio.disconnect()
+        await self.pc.close()
 
 if __name__ == "__main__":
     brain_instance = Brain()
+    asyncio.run(brain_instance.start())

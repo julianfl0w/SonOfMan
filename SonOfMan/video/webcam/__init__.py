@@ -1,2 +1,2 @@
 from . import capture
-from . import host
+from . import cv2_host
