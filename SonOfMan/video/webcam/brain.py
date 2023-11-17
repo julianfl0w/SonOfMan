@@ -5,7 +5,7 @@ import asyncio
 import constants
 import socketio
 
-from aiortc import RTCPeerConnection, RTCConfiguration, RTCIceServer
+from aiortc import RTCPeerConnection, RTCConfiguration, RTCIceServer, RTCSessionDescription
 
 class Brain:
     def __init__(self):
@@ -19,28 +19,35 @@ class Brain:
         self.ws_url = "http://localhost:5000"
         self.sio = socketio.AsyncClient()
 
-    async def on_message(self, data):
-        print(f"Received message: {data}")
-        # TODO: Handle ICE candidates received from server
+    async def handle_answer(self, message):
+        print(f"Received answer")
+        answer_json = json.loads(message)
+        
+        # Create a new dictionary without the 'host_sid' key
+        new_dict = {key: value for key, value in answer_json.items() if key != 'host_sid'}
+
+
+        # Create RTCSessionDescription from JSON
+        answer_sdp = RTCSessionDescription(**new_dict)
+
+        await self.pc.setRemoteDescription(answer_sdp)
+        print("Set remote description successfully")
 
     async def start(self):
         # create_offer_and_gather_candidates
         offer = await self.pc.createOffer()
         await self.pc.setLocalDescription(offer)
-        sdp = self.pc.localDescription.sdp
-        print(f"Gathered SDP:\n{sdp}")
+        #print(f"Gathered SDP:\n{offer}")
 
         # connect to server
         await self.sio.connect(self.ws_url, namespaces=['/brain_connect'])
         
         # listen for messages from server
-        self.sio.on('message', self.on_message, namespace='/brain_connect')
+        self.sio.on('answer', self.handle_answer, namespace='/brain_connect')
 
         # report_ice_candidate_to_server
-        data = {'host_id': self.host_id, 'candidate': sdp}
-        await self.sio.emit('message', json.dumps(data), namespace='/brain_connect')
-
-        # TODO: Handle ICE candidate gathering
+        offerDict = dict(host_id = self.host_id, sdp = offer.sdp, type = offer.type)
+        await self.sio.emit('offer', json.dumps(offerDict), namespace='/brain_connect')
 
         # Keep the connection open
         await asyncio.Future()  # This will keep the connection open indefinitely
@@ -49,6 +56,9 @@ class Brain:
         await self.sio.disconnect()
         await self.pc.close()
 
-if __name__ == "__main__":
+def main():
     brain_instance = Brain()
     asyncio.run(brain_instance.start())
+
+if __name__ == "__main__":
+    main()
