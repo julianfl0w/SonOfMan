@@ -9,24 +9,25 @@ app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-brains = {}
+connections = {}
 
 import multiprocessing as mp
 import brain
 
 
-@socketio.on('connect', namespace='/brain_connect')
-def handle_brain_connect():
-    print("Client connected to /brain_connect")
+@socketio.on('connect', namespace='/connect')
+def handle_connect():
+    emit('candidates', json.dumps(connections))
+    print("Client connected to /connect")
 
-@socketio.on('disconnect', namespace='/brain_connect')
-def handle_brain_disconnect():
+@socketio.on('disconnect', namespace='/connect')
+def handle_disconnect():
     sid = request.sid  # Access the session ID of the disconnected client
-    print(f"Client disconnected from /brain_connect with session ID {sid}")
-    brains.pop(sid, None)  # Remove the candidate associated with the disconnected session
+    print(f"Client disconnected from /connect with session ID {sid}")
+    connections.pop(sid, None)  # Remove the candidate associated with the disconnected session
 
-@socketio.on('offer', namespace='/brain_connect')
-def handle_brain_message(message):
+@socketio.on('offer', namespace='/connect')
+def handle_message(message):
     print(f"Received brain connect offer")
 
     offer = json.loads(message)
@@ -38,27 +39,10 @@ def handle_brain_message(message):
         emit('failure', 'host_id and sdp required')
         return
 
-    brains[request.sid] = json.loads(message)
+    connections[request.sid] = json.loads(message)
     emit('success', 'Candidate saved successfully')
 
-@socketio.on('connect', namespace='/eye_connect')
-def handle_eye_connect():
-    print("Client connected to /eye_connect")
-
-@socketio.on('disconnect', namespace='/eye_connect')
-def handle_eye_disconnect():
-    print("Client disconnected from /eye_connect")
-
-@socketio.on('candidates', namespace='/eye_connect')
-def handle_candidates(message):
-    print(f"Received candidates")
-    #message = json.loads(message)
-    # send list of ice candidates on connect
-    #print(brains)
-    emit('candidates', json.dumps(brains))
-    print("Candidates sent")
-
-@socketio.on('answer', namespace='/eye_connect')
+@socketio.on('answer', namespace='/connect')
 def handle_answer(answer):
     print(f"Received answer")
     answer = json.loads(answer)
@@ -71,22 +55,15 @@ def handle_answer(answer):
     print(host_sid)
     # Fetch the peer connection object for the given client
     # This is a placeholder, replace with your actual logic to get the peer connection
-    peer_connection = brains.get(host_sid)
+    peer_connection = connections.get(host_sid)
 
     if peer_connection:
-        # Here you would typically set the answer on the peer connection
-        # Since this is highly dependent on your WebRTC setup, replace with your actual logic
-        # For example: peer_connection.setRemoteDescription(answer)
-
-        # Emit a message to the specific client identified by host_sid
-        # to inform them that the answer has been processed and any further steps if needed
-        emit('answer', json.dumps(answer), to=host_sid, namespace='/brain_connect')
+        emit('answer', json.dumps(answer), to=host_sid, namespace='/connect')
 
         # Signal back to the client who sent the answer if needed
         emit('status', json.dumps({'status': 'success', 'message': 'Answer processed successfully'}))
     else:
-        emit('status', json.dumps({'status': 'failed', 'message': 'Peer connection not found'}), to=host_sid, namespace='/brain_connect')
-
+        emit('status', json.dumps({'status': 'failed', 'message': 'Peer connection not found'}), to=host_sid, namespace='/connect')
 
 if __name__ == '__main__':
     # Create a new process targeting brain.main
@@ -95,3 +72,5 @@ if __name__ == '__main__':
     #process.start()
 
     socketio.run(app, debug=False, port=5000) 
+
+
