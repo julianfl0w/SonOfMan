@@ -58,11 +58,13 @@ def handle_answer(answer):
     peer_connection = connections.get(host_sid)
 
     if peer_connection:
+        print("Forwarding answer")
         emit('answer', json.dumps(answer), to=host_sid, namespace='/connect')
 
         # Signal back to the client who sent the answer if needed
         emit('status', json.dumps({'status': 'success', 'message': 'Answer processed successfully'}))
     else:
+        print("Error: no peer connection")
         emit('status', json.dumps({'status': 'failed', 'message': 'Peer connection not found'}), to=host_sid, namespace='/connect')
 
 if __name__ == '__main__':

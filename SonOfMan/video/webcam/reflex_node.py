@@ -1,16 +1,18 @@
-import stun
 import uuid
 import json
 import asyncio
 import constants
 import socketio
+import dataclasses
 
 from aiortc import (
     RTCPeerConnection, 
     RTCConfiguration, 
     RTCIceServer, 
     RTCSessionDescription,
-    RTCIceCandidate  # import RTCIceCandidate
+    RTCIceGatherer,
+    RTCIceCandidate  # import RTCIceCandidate,
+
 )
 
 class ReflexNode:
@@ -25,18 +27,10 @@ class ReflexNode:
 
         self.server_url = "localhost:5000"
 
-    async def handle_offer(self, message):
-        print(f"Received answer")
+    async def handle_status(self, message):
+        print(f"Received status")
         answer_json = json.loads(message)
-        
-        # Create a new dictionary without the 'host_sid' key
-        new_dict = {key: value for key, value in answer_json.items() if key != 'host_sid'}
-
-        # Create RTCSessionDescription from JSON
-        answer_sdp = RTCSessionDescription(**new_dict)
-
-        await self.pc.setRemoteDescription(answer_sdp)
-        print("Set remote description successfully")
+        print(answer_json)
 
     async def handle_answer(self, message):
         print(f"Received answer")
@@ -57,7 +51,22 @@ class ReflexNode:
         if hasattr(self, "pc"):
             await self.pc.close()
 
-    async def connectToPeer(self):
+
+    async def handleIce(self, event):
+        print("ICE ICE BABY")
+        if event.candidate:
+            candidate_dict = dataclasses.asdict(event.candidate)
+            # Send this candidate to the remote peer via signaling
+            await self.sio.emit('ice_candidate', json.dumps(candidate_dict), namespace='/connect')
+
+    async def sendOffer(self):
+
+        self.pc = RTCPeerConnection()
+
+        # Handle ICE candidates
+        @self.pc.on("icecandidate")
+        async def on_ice_candidate(event):
+            await self.handleIce(event)
 
         self.data_channel = self.pc.createDataChannel("dummyChannel")
         @self.data_channel.on("open")
@@ -69,46 +78,26 @@ class ReflexNode:
         def on_message(message):
             print(f"Received message: {message}")
 
-
-        self.pc = RTCPeerConnection()
         # create_offer_and_gather_candidates
         offer = await self.pc.createOffer()
         await self.pc.setLocalDescription(offer)
         print("Local desc set")
-        print(f"Gathered SDP:\n{offer}")
+        #print(f"Gathered SDP:\n{offer}")
 
         # report_ice_candidate_to_server
         #print(offer.sdp)
-        offerDict = dict(host_id = self.host_id, sdp = offer.sdp, type = offer.type)
+        offerDict = dict(host_id = self.host_id, sdp = self.pc.localDescription.sdp, ice_candidates=ice_candidates_json, type = self.pc.localDescription.type)
         await self.sio.emit('offer', json.dumps(offerDict), namespace='/connect')
+        print("Offer Sent")
 
-        # Keep the connection open
-        await asyncio.Future()  # This will keep the connection open indefinitely
-
-
-
-    async def connectToReflexPathway(self):
-
-        try:
-            # connect to server
-            self.sio = socketio.AsyncClient()
-
-            # listen for messages from server
-            #self.sio.on('offer', self.handle_offer, namespace='/connect')
-            self.sio.on('answer', self.handle_answer, namespace='/connect')
-            self.sio.on('disconnect', self.handle_disconnect, namespace='/connect')
-            self.sio.on('candidates', self.chooseCandidate, namespace='/connect')
-
-            await self.sio.connect("http://localhost:5000", namespaces=['/connect'])
-
-            await asyncio.Future()
-
-        finally:
-            await self.sio.disconnect()
-
-    async def connectToPeer(self, remote_sid, candidate):
+    async def sendAnswerAndConnect(self, remote_sid, candidate):
         pc = RTCPeerConnection()
         pc_id = "PeerConnection"
+
+        # Handle ICE candidates
+        @pc.on("icecandidate")
+        async def on_ice_candidate(event):
+            await self.handleIce(event)
 
         # Set up a handler for the "datachannel" event
         @pc.on("datachannel")
@@ -131,11 +120,24 @@ class ReflexNode:
         await pc.setLocalDescription(answer)
         print("Local description set")
 
-        print(f"{pc_id} Created answer")
-        
-        message = dict(host_sid = remote_sid,  sdp = answer.sdp, type = answer.type)
+        message = dict(host_sid = remote_sid,  sdp = pc.localDescription.sdp, type = pc.localDescription.type)
         await self.sio.emit('answer', json.dumps(message), namespace='/connect')
         print(f"Answer sent")
+
+    async def connectToReflexPathway(self):
+
+        # connect to server
+        self.sio = socketio.AsyncClient()
+
+        # listen for messages from server
+        
+        self.sio.on('status', self.handle_status, namespace='/connect')
+        self.sio.on('answer', self.handle_answer, namespace='/connect')
+        self.sio.on('disconnect', self.handle_disconnect, namespace='/connect')
+        self.sio.on('candidates', self.chooseCandidate, namespace='/connect')
+
+        await self.sio.connect("http://localhost:5000", namespaces=['/connect'])
+
 
     async def chooseCandidate(self, offer):
         print("Received candidates")
@@ -144,4 +146,4 @@ class ReflexNode:
             remote_sid, candidate = list(offerDict.items())[0]
             print(f"offer {remote_sid}")
             #await self.sio.emit('message', json.dumps({"request":"remote_sid", "remote_sid" : remote_sid}), namespace='/connect')
-            await self.connectToPeer(remote_sid, candidate)
+            await self.sendAnswerAndConnect(remote_sid, candidate)
