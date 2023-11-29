@@ -86,7 +86,7 @@ class ReflexNode:
 
         # report_ice_candidate_to_server
         #print(offer.sdp)
-        offerDict = dict(host_id = self.host_id, sdp = self.pc.localDescription.sdp, ice_candidates=ice_candidates_json, type = self.pc.localDescription.type)
+        offerDict = dict(host_id = self.host_id, sdp = self.pc.localDescription.sdp, type = self.pc.localDescription.type)
         await self.sio.emit('offer', json.dumps(offerDict), namespace='/connect')
         print("Offer Sent")
 
@@ -147,3 +147,4 @@ class ReflexNode:
             print(f"offer {remote_sid}")
             #await self.sio.emit('message', json.dumps({"request":"remote_sid", "remote_sid" : remote_sid}), namespace='/connect')
             await self.sendAnswerAndConnect(remote_sid, candidate)
+        #await self.sio.disconnect()
