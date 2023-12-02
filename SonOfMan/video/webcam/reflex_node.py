@@ -11,9 +11,86 @@ from aiortc import (
     RTCIceServer, 
     RTCSessionDescription,
     RTCIceGatherer,
+    MediaStreamTrack,
     RTCIceCandidate  # import RTCIceCandidate,
 
 )
+import numpy as np
+import fractions
+
+import av
+
+from av import AudioFrame, VideoFrame
+
+from aiortc.mediastreams import (AudioStreamTrack, MediaStreamTrack,
+                                 VideoStreamTrack)
+import time
+
+class SineWaveAudioStreamTrack(AudioStreamTrack):
+    """
+    An audio track that generates a sine wave.
+    """
+    def __init__(self):
+        super().__init__()
+        self.sample_rate = 48000  # Audio sample rate
+        self.channels = 1  # Mono audio
+        self.frequency = 440  # Frequency of the sine wave (A4 note)
+        self.time = 0  # Keep track of time for sine wave generation
+        self._start = 0
+
+    async def recv(self):
+        """
+        Generates a frame containing a sine wave.
+        """
+
+        try:
+            #print("Genetate")
+            samples = 1024  # Number of audio samples per frame
+            t = np.linspace(self.time, self.time + samples / self.sample_rate, samples, False)
+            audio_data = (np.sin(2 * np.pi * self.frequency * t) * 32767).astype(np.int16)
+            #print("half")
+            rs = audio_data.reshape(self.channels, -1)
+            #rs = audio_data
+            #print("SDF")
+            #frame = AudioFrame()
+            #.from_ndarray(rs, format='s16', layout='mono')
+            #frame.sample_rate = self.sample_rate
+            #frame.time_base = fractions.Fraction(1, self.sample_rate)
+
+            frame = AudioFrame(format="s16", layout="mono", samples=samples)
+            for p in frame.planes:
+                p.update(rs.tobytes())
+            frame.pts = self.time
+            frame.sample_rate = self.sample_rate
+            frame.time_base = fractions.Fraction(1, self.sample_rate)
+            return frame
+
+
+            self.time += samples / self.sample_rate
+            print("genet done") 
+            return frame
+        except Exception as e:
+            print(e)
+
+import pyaudio
+class AudioPlayer:
+    def __init__(self):
+        self.pyaudio_instance = pyaudio.PyAudio()
+        self.stream = self.pyaudio_instance.open(
+            format=pyaudio.paInt16,
+            channels=1,
+            rate=48000,
+            output=True
+        )
+
+    def play(self, frame):
+        print("play")
+        self.stream.write(frame)
+
+    def close(self):
+        self.stream.stop_stream()
+        self.stream.close()
+        self.pyaudio_instance.terminate()
 
 class ReflexNode:
     def __init__(self):
@@ -78,6 +155,11 @@ class ReflexNode:
         def on_message(message):
             print(f"Received message: {message}")
 
+        # Create a sine wave audio track and add it to the connection
+        #audio_track = SineWaveAudioStreamTrack()
+        audio_track = AudioStreamTrack()
+        self.pc.addTrack(audio_track)
+
         # create_offer_and_gather_candidates
         offer = await self.pc.createOffer()
         await self.pc.setLocalDescription(offer)
@@ -111,6 +193,22 @@ class ReflexNode:
             @channel.on("message")
             def on_message(message):
                 print(f"Received message: {message}")
+
+
+        # Handle received tracks
+        audio_player = AudioPlayer()  # Initialize the audio player
+        @pc.on("track")
+        async def on_track(track):
+            print("Audio track received")
+            while True:
+                try:
+                    frame = await track.recv()
+                    framebytes = frame.planes[0].to_bytes()
+                    print(len(framebytes))
+                    audio_player.play(framebytes)
+                except Exception as e:
+                    print("DATA FAILURE")
+                    print(e)
 
         remote_offer = RTCSessionDescription(sdp=candidate['sdp'], type=candidate['type'])
         await pc.setRemoteDescription(remote_offer)
