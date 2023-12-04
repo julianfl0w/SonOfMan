@@ -37,6 +37,7 @@ class SineWaveAudioStreamTrack(AudioStreamTrack):
         self.frequency = 440  # Frequency of the sine wave (A4 note)
         self.time = 0  # Keep track of time for sine wave generation
         self._start = 0
+        self.pts = 0
 
     async def recv(self):
         """
@@ -53,16 +54,25 @@ class SineWaveAudioStreamTrack(AudioStreamTrack):
             #rs = audio_data
             #print("SDF")
             #frame = AudioFrame()
-            #.from_ndarray(rs, format='s16', layout='mono')
-            #frame.sample_rate = self.sample_rate
-            #frame.time_base = fractions.Fraction(1, self.sample_rate)
+            frame = AudioFrame.from_ndarray(rs, format='s16p', layout='mono')
 
+            print(rs)
             frame = AudioFrame(format="s16", layout="mono", samples=samples)
             for p in frame.planes:
                 p.update(rs.tobytes())
             frame.pts = self.time
+            #frame.sample_rate = self.sample_rate
+            #frame.time_base = fractions.Fraction(1, self.sample_rate)
+
+            #frame = AudioFrame(format="s16", layout="mono", samples=samples)
+            #for p in frame.planes:
+            #    p.update(rs.tobytes())
+            frame.pts = self.pts
             frame.sample_rate = self.sample_rate
             frame.time_base = fractions.Fraction(1, self.sample_rate)
+
+            self.pts += samples
+            self.time += samples/self.sample_rate
             return frame
 
 
@@ -73,18 +83,18 @@ class SineWaveAudioStreamTrack(AudioStreamTrack):
             print(e)
 
 import pyaudio
+import sounddevice as sd
 class AudioPlayer:
     def __init__(self):
-        self.pyaudio_instance = pyaudio.PyAudio()
-        self.stream = self.pyaudio_instance.open(
-            format=pyaudio.paInt16,
+        self.stream = sd.OutputStream(
+            dtype=np.int16,
             channels=1,
-            rate=48000,
-            output=True
+            samplerate=48000,
+            blocksize=1024
         )
+        self.stream.start()
 
     def play(self, frame):
-        print("play")
         self.stream.write(frame)
 
     def close(self):
@@ -157,7 +167,7 @@ class ReflexNode:
 
         # Create a sine wave audio track and add it to the connection
         #audio_track = SineWaveAudioStreamTrack()
-        audio_track = AudioStreamTrack()
+        audio_track = SineWaveAudioStreamTrack()
         self.pc.addTrack(audio_track)
 
         # create_offer_and_gather_candidates
@@ -204,8 +214,8 @@ class ReflexNode:
                 try:
                     frame = await track.recv()
                     framebytes = frame.planes[0].to_bytes()
-                    print(len(framebytes))
-                    audio_player.play(framebytes)
+                    audio_array = np.frombuffer(framebytes, dtype=np.int16)
+                    audio_player.play(audio_array)
                 except Exception as e:
                     print("DATA FAILURE")
                     print(e)
