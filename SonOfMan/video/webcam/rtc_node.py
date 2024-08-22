@@ -102,7 +102,7 @@ class AudioPlayer:
         self.stream.close()
         self.pyaudio_instance.terminate()
 
-class ReflexNode:
+class RTCNode:
     def __init__(self):
         self.connections = []
 

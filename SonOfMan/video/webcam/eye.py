@@ -1,7 +1,7 @@
 import asyncio
-import reflex_node
+import SonOfMan.video.webcam.rtc_node as rtc_node
 
-class Eye(reflex_node.ReflexNode):
+class Eye(rtc_node.RTCNode):
     pass
 
 async def main():
